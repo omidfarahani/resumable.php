@@ -1,4 +1,5 @@
 # PHP backend for resumable file upload
+## Customized for wordpress/fantastic
 
 
 ## Installation
