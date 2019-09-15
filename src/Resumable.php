@@ -216,7 +216,56 @@ class Resumable
         if (null !== $this->filename) {
             $finalFilename = $this->createSafeFilename($this->filename, $filename);
         } else {
-            $finalFilename = $filename;
+            global $wpdb;
+            
+            $extension = $this->findExtension($filename);
+            $last_request_file_id = get_option( 'last_request_file_id', 0 );
+            $request_file_id = $last_request_file_id + 1;
+            update_option( 'last_request_file_id', $request_file_id );
+            $file_name = "res_" . uniqid() . $request_file_id . "." . $extension;
+            $file_rel_path = determin_request_file_upload_folder() . '/' . $file_name;
+
+            $finalFilename = $file_name;
+
+            $sql = "SELECT form_value
+              FROM {$wpdb->prefix}fantastic_analysis_requests_info
+              WHERE request_id=%d
+              AND form_field='_result_files'";
+            $files = $wpdb->get_var( $wpdb->prepare( $sql, $_POST['rid'] ) );
+
+            if( $files == '' ) $files = serialize( array() );
+            $files = unserialize( $files );
+            $files[] = $file_rel_path;
+            $files = serialize( $files );
+            $sql = "SELECT COUNT(*)
+              FROM {$wpdb->prefix}fantastic_analysis_requests_info
+              WHERE request_id=%d
+              AND form_field='_result_files'";
+            if( $wpdb->get_var( $wpdb->prepare( $sql, $_POST['rid'] ) ) > 0 ){ //update
+              $data = array( 'form_value'	=> $files );
+              $where = array(
+                'request_id'	=> $_POST['rid'],
+                'form_field'	=> '_result_files',
+              );
+              $where_format = array(
+                'request_id'	=> '%d',
+                'form_field'	=> '%s',
+              );
+              $wpdb->update( $wpdb->prefix . 'fantastic_analysis_requests_info', $data, $where, '%s', $where_format );
+            }
+            else{ //new
+              $data = array(
+                'request_id'	=> $_POST['rid'],
+                'form_field'	=> '_result_files',
+                'form_value'	=> $files
+              );
+              $where = array(
+                'request_id'	=> '%d',
+                'form_field'	=> '%s',
+                'form_value'	=> '%s'
+              );
+              $wpdb->insert( $wpdb->prefix . 'fantastic_analysis_requests_info', $data, $where );
+            }
         }
 
         // replace filename reference by the final file
